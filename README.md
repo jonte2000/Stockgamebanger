@@ -1,2 +1,0 @@
-# Stockgamebanger
-bangergame
