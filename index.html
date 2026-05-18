@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>APXC · Stock Trader</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: #0a0a0a; color: #e8e8e8; font-family: 'Courier New', Courier, monospace; overflow: hidden; }
+  #app { display: flex; flex-direction: column; width: 100vw; height: 100vh; padding: 20px 28px 16px; gap: 12px; }
+
+  .tab-bar { display: flex; gap: 6px; flex-shrink: 0; }
+  .tab { font-size: 12px; padding: 6px 18px; border-radius: 6px; border: 0.5px solid #2a2a2a; background: #111; color: #555; cursor: pointer; font-family: inherit; transition: all 0.12s; }
+  .tab.active { background: #1a1a1a; color: #e8e8e8; border-color: #444; }
+  .tab:hover:not(.active) { color: #999; }
+
+  #view-game { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 12px; }
+  #view-lb { display: none; flex-direction: column; flex: 1; min-height: 0; gap: 14px; }
+
+  .top-bar { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .stock-name { font-size: 13px; color: #555; letter-spacing: 0.12em; text-transform: uppercase; }
+  .top-actions { display: flex; gap: 12px; align-items: center; }
+  .reset-btn { font-size: 12px; color: #444; background: none; border: none; cursor: pointer; text-decoration: underline; font-family: inherit; }
+  .reset-btn:hover { color: #777; }
+  .fs-btn { font-size: 12px; color: #999; background: #161616; border: 0.5px solid #2a2a2a; cursor: pointer; font-family: inherit; padding: 5px 14px; border-radius: 4px; }
+  .fs-btn:hover { color: #ddd; border-color: #444; }
+  .price-row { display: flex; align-items: baseline; gap: 14px; flex-shrink: 0; }
+  .price-display { font-size: 56px; font-weight: 600; color: #f0f0f0; letter-spacing: -0.02em; line-height: 1; }
+  .price-change { font-size: 16px; font-weight: 500; padding: 4px 12px; border-radius: 4px; }
+  .up { background: #0d2b1a; color: #4ade80; }
+  .down { background: #2b0d0d; color: #f87171; }
+  .chart-wrap { flex: 1; min-height: 0; background: #0d0d0d; border-radius: 10px; border: 0.5px solid #1c1c1c; padding: 12px; position: relative; }
+  .chart-wrap canvas { display: block; width: 100% !important; height: 100% !important; }
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; flex-shrink: 0; }
+  .stat-card { background: #111; border: 0.5px solid #1e1e1e; border-radius: 8px; padding: 12px 16px; }
+  .stat-label { font-size: 11px; color: #444; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 5px; }
+  .stat-value { font-size: 22px; font-weight: 500; color: #e8e8e8; }
+  .positive { color: #4ade80; }
+  .negative { color: #f87171; }
+  .controls-row { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+  .qty-label { font-size: 14px; color: #555; }
+  .qty-input { width: 80px; padding: 8px 10px; border-radius: 6px; border: 0.5px solid #2a2a2a; background: #111; color: #e8e8e8; font-family: inherit; font-size: 15px; text-align: center; }
+  .qty-input:focus { outline: none; border-color: #444; }
+  .cost-preview { font-size: 13px; color: #444; }
+  .btn-row { display: flex; gap: 12px; flex: 1; }
+  .btn { flex: 1; padding: 12px; border-radius: 8px; font-size: 18px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.12s, transform 0.08s; border: 0.5px solid; }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { opacity: 0.2; cursor: not-allowed; transform: none; }
+  .btn-buy { background: #0a1f13; border-color: #1a4d2a; color: #4ade80; }
+  .btn-buy:hover:not(:disabled) { background: #0f2e1c; }
+  .btn-sell { background: #1f0a0a; border-color: #4d1a1a; color: #f87171; }
+  .btn-sell:hover:not(:disabled) { background: #2e0f0f; }
+  .event-ticker { font-size: 11px; color: #333; height: 16px; flex-shrink: 0; letter-spacing: 0.04em; }
+  .event-ticker.positive-event { color: #2d6e42; }
+  .event-ticker.negative-event { color: #6e2d2d; }
+
+  /* leaderboard */
+  .lb-header { display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; flex-wrap: wrap; gap: 10px; }
+  .lb-title { font-size: 13px; color: #555; letter-spacing: 0.12em; text-transform: uppercase; }
+  .lb-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .lb-name-input { padding: 7px 12px; border-radius: 6px; border: 0.5px solid #2a2a2a; background: #111; color: #e8e8e8; font-family: inherit; font-size: 13px; width: 150px; }
+  .lb-name-input:focus { outline: none; border-color: #444; }
+  .lb-submit-btn { font-size: 12px; color: #4ade80; background: #0a1f13; border: 0.5px solid #1a4d2a; cursor: pointer; font-family: inherit; padding: 7px 16px; border-radius: 6px; }
+  .lb-submit-btn:hover { background: #0f2e1c; }
+  .lb-refresh-btn { font-size: 12px; color: #999; background: #161616; border: 0.5px solid #2a2a2a; cursor: pointer; font-family: inherit; padding: 7px 14px; border-radius: 6px; }
+  .lb-refresh-btn:hover { color: #ddd; border-color: #444; }
+  .lb-status { font-size: 11px; color: #444; flex-shrink: 0; height: 16px; }
+  .lb-status.err { color: #6e2d2d; }
+  .lb-status.ok { color: #2d6e42; }
+  .lb-table-wrap { flex: 1; min-height: 0; overflow-y: auto; background: #0d0d0d; border-radius: 10px; border: 0.5px solid #1c1c1c; padding: 16px; }
+  .lb-table { width: 100%; border-collapse: collapse; }
+  .lb-table th { font-size: 10px; color: #3a3a3a; text-transform: uppercase; letter-spacing: 0.1em; padding: 0 12px 10px; text-align: left; border-bottom: 0.5px solid #1c1c1c; }
+  .lb-table th:nth-child(3), .lb-table th:nth-child(4) { text-align: right; }
+  .lb-table td { padding: 10px 12px; font-size: 14px; border-bottom: 0.5px solid #161616; color: #aaa; }
+  .lb-table td:nth-child(3), .lb-table td:nth-child(4) { text-align: right; }
+  .lb-table tr:last-child td { border-bottom: none; }
+  .lb-rank { color: #444; font-size: 12px; }
+  .lb-player { color: #e8e8e8; }
+  .lb-nw-pos { color: #4ade80; }
+  .lb-nw-neg { color: #f87171; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('game')">📈 Trade</button>
+    <button class="tab" onclick="switchTab('lb')">🏆 Leaderboard</button>
+  </div>
+
+  <!-- GAME VIEW -->
+  <div id="view-game">
+    <div class="top-bar">
+      <span class="stock-name">APEX Corp &middot; APXC</span>
+      <div class="top-actions">
+        <button class="reset-btn" onclick="resetGame()">reset</button>
+        <button class="fs-btn" id="fs-btn" onclick="toggleFullscreen()">⛶ fullscreen</button>
+      </div>
+    </div>
+    <div class="price-row">
+      <div class="price-display" id="price-display">$—</div>
+      <span class="price-change" id="change-badge">—</span>
+    </div>
+    <div class="event-ticker" id="event-ticker"></div>
+    <div class="chart-wrap">
+      <canvas id="chart" role="img" aria-label="APEX Corp stock price chart"></canvas>
+    </div>
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Cash</div><div class="stat-value" id="cash-display">—</div></div>
+      <div class="stat-card"><div class="stat-label">Shares</div><div class="stat-value" id="shares-display">0</div></div>
+      <div class="stat-card"><div class="stat-label">Holdings</div><div class="stat-value" id="holdings-display">$0</div></div>
+      <div class="stat-card"><div class="stat-label">Net worth</div><div class="stat-value" id="networth-display">—</div></div>
+    </div>
+    <div class="controls-row">
+      <span class="qty-label">Qty:</span>
+      <input class="qty-input" type="number" id="qty" value="1" min="1" step="1" />
+      <span class="cost-preview" id="cost-preview"></span>
+      <div class="btn-row">
+        <button class="btn btn-buy" id="btn-buy" onclick="trade('buy')">▲ Buy</button>
+        <button class="btn btn-sell" id="btn-sell" onclick="trade('sell')">▼ Sell</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- LEADERBOARD VIEW -->
+  <div id="view-lb">
+    <div class="lb-header">
+      <span class="lb-title">Leaderboard &middot; All Time</span>
+      <div class="lb-actions">
+        <input class="lb-name-input" type="text" id="lb-name" placeholder="Your name…" maxlength="20" />
+        <button class="lb-submit-btn" onclick="submitScore()">Submit score</button>
+        <button class="lb-refresh-btn" onclick="loadLeaderboard()">↻ Refresh</button>
+      </div>
+    </div>
+    <div class="lb-status" id="lb-status"></div>
+    <div class="lb-table-wrap">
+      <table class="lb-table">
+        <thead><tr><th>#</th><th>Player</th><th>Net Worth</th><th>vs Start</th></tr></thead>
+        <tbody id="lb-body">
+          <tr><td colspan="4" style="color:#2e2e2e;text-align:center;padding:30px 0;">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+<script>
+const STORAGE_KEY = 'apxc_stock_game_v5';
+const STARTING_CASH = 10000;
+const STARTING_PRICE = 100;
+const MAX_HISTORY = 120;
+const JSONBIN_KEY = '$2a$10$rMUtjHydEHsYCSwKzj1EJ.BOOarcT5zULby2UXYJiwg8nDFHEZIXy';
+const JSONBIN_BIN_ID = '6a0ab7a1c0954111d83d7b14';
+const JSONBIN_URL = 'https://api.jsonbin.io/v3/b/' + JSONBIN_BIN_ID;
+
+const POSITIVE_EVENTS = [
+  'APXC beats earnings estimate by 12%','Analyst upgrades APXC to strong buy',
+  'APXC signs major government contract','New product launch exceeds expectations',
+  'APXC reports record quarterly revenue','Institutional investor takes large position',
+  'APXC announces share buyback program','Merger rumours boost APXC stock',
+  'APXC raises full-year guidance','Sector rally lifts APXC shares',
+];
+const NEGATIVE_EVENTS = [
+  'APXC misses revenue forecast','Supply chain disruption hits APXC',
+  'Analyst downgrades APXC to hold','Broader market selloff drags APXC lower',
+  'APXC CFO resigns unexpectedly','Regulatory probe announced for APXC',
+  'APXC lowers full-year outlook','Competitor undercuts APXC pricing',
+  'Sector rotation out of tech weighs on APXC','APXC delays product launch',
+];
+
+let state = loadState();
+let chart, momentum = 0, eventClearTimer = null;
+
+// ── Tabs ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach((t,i) => t.classList.toggle('active', (i===0&&tab==='game')||(i===1&&tab==='lb')));
+  document.getElementById('view-game').style.display = tab==='game' ? 'flex' : 'none';
+  document.getElementById('view-lb').style.display  = tab==='lb'   ? 'flex' : 'none';
+  if (tab==='lb') loadLeaderboard();
+  if (tab==='game') setTimeout(() => { if(chart) chart.resize(); }, 50);
+}
+
+// ── State ──
+function loadState() {
+  try { const r = localStorage.getItem(STORAGE_KEY); if (r) return JSON.parse(r); } catch(e) {}
+  return freshState();
+}
+function freshState() {
+  const prices = [STARTING_PRICE];
+  for (let i=1;i<30;i++) prices.push(+(prices[prices.length-1]*(1+(Math.random()-0.5)*0.035)).toFixed(2));
+  return { cash:STARTING_CASH, shares:0, avgBuyPrice:0, prices, trades:[], tradeMarkers:[] };
+}
+function saveState() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {} }
+function resetGame() { if (!confirm('Reset all progress?')) return; state=freshState(); momentum=0; saveState(); buildChart(); render(); }
+function currentPrice() { return state.prices[state.prices.length-1]; }
+function randn() {
+  let u=0,v=0;
+  while(!u) u=Math.random(); while(!v) v=Math.random();
+  return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+}
+
+// ── Price simulation ──
+function nextPrice() {
+  const price = currentPrice();
+  const ownershipNudge = state.shares > 0 ? 0.002 : -0.002;
+  momentum *= 0.85;
+  const noise = 0.013 * randn();
+  if (Math.random() < 0.15) momentum += (Math.random()-0.5)*0.008;
+  let eventShock=0, eventText='', eventType='';
+  const r = Math.random();
+  if      (r < 0.015) { eventShock= 0.04+Math.random()*0.06; momentum+=0.012; eventText=POSITIVE_EVENTS[Math.floor(Math.random()*POSITIVE_EVENTS.length)]; eventType='positive-event'; }
+  else if (r < 0.03)  { eventShock=-(0.04+Math.random()*0.06); momentum-=0.012; eventText=NEGATIVE_EVENTS[Math.floor(Math.random()*NEGATIVE_EVENTS.length)]; eventType='negative-event'; }
+  else if (r < 0.07)  { eventShock= 0.015+Math.random()*0.02; momentum+=0.005; }
+  else if (r < 0.11)  { eventShock=-(0.015+Math.random()*0.02); momentum-=0.005; }
+  if (eventText) showEvent(eventText, eventType);
+  const ceilingPull = price > 250 ? -((price-250)/250)*0.008 : 0;
+  const total = 0.0001 + ownershipNudge + momentum + noise + eventShock + ceilingPull;
+  return Math.min(400, Math.max(1, +(price*(1+total)).toFixed(2)));
+}
+
+function showEvent(text, type) {
+  const el = document.getElementById('event-ticker');
+  el.textContent='● '+text; el.className='event-ticker '+type;
+  if (eventClearTimer) clearTimeout(eventClearTimer);
+  eventClearTimer = setTimeout(()=>{ el.textContent=''; el.className='event-ticker'; }, 6000);
+}
+
+function trade(type) {
+  const qty = Math.max(1, parseInt(document.getElementById('qty').value)||1);
+  const price = currentPrice(), idx = state.prices.length-1;
+  if (type==='buy') {
+    const cost = +(price*qty).toFixed(2);
+    if (cost > state.cash+0.001) return;
+    state.cash = +(state.cash-cost).toFixed(2);
+    const prev = state.avgBuyPrice*state.shares;
+    state.shares += qty;
+    state.avgBuyPrice = +((prev+cost)/state.shares).toFixed(4);
+    state.trades.unshift({type:'buy',qty,price,time:new Date().toLocaleTimeString()});
+    state.tradeMarkers.push({idx,type:'buy',price,qty});
+  } else {
+    if (state.shares < qty) return;
+    state.cash = +(state.cash+price*qty).toFixed(2);
+    state.shares -= qty;
+    if (!state.shares) state.avgBuyPrice=0;
+    state.trades.unshift({type:'sell',qty,price,time:new Date().toLocaleTimeString()});
+    state.tradeMarkers.push({idx,type:'sell',price,qty});
+  }
+  if (state.trades.length>60) state.trades=state.trades.slice(0,60);
+  saveState(); updateChart(); render();
+}
+
+function tick() {
+  state.prices.push(nextPrice());
+  if (state.prices.length > MAX_HISTORY) {
+    const trim = state.prices.length-MAX_HISTORY;
+    state.prices = state.prices.slice(trim);
+    state.tradeMarkers = state.tradeMarkers.map(m=>({...m,idx:m.idx-trim})).filter(m=>m.idx>=0);
+  }
+  saveState(); updateChart(); render();
+}
+
+// ── Chart ──
+function buildChart() {
+  if (chart) { chart.destroy(); chart=null; }
+  const wrap = document.querySelector('.chart-wrap');
+  const canvas = document.getElementById('chart');
+  canvas.width=wrap.clientWidth-24; canvas.height=wrap.clientHeight-24;
+  chart = new Chart(canvas.getContext('2d'), {
+    type:'line',
+    data:{ datasets:[
+      {label:'Price',data:[],borderColor:'#22c55e',borderWidth:2,pointRadius:0,tension:0.2,fill:{target:'origin',above:'rgba(34,197,94,0.05)'}},
+      {label:'Buy',data:[],type:'scatter',pointRadius:10,pointStyle:'triangle',rotation:0,backgroundColor:'#22c55e',borderColor:'#22c55e',showLine:false},
+      {label:'Sell',data:[],type:'scatter',pointRadius:10,pointStyle:'triangle',rotation:180,backgroundColor:'#ef4444',borderColor:'#ef4444',showLine:false}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:150},
+      plugins:{
+        legend:{display:false},
+        tooltip:{mode:'index',intersect:false,backgroundColor:'#111',borderColor:'#2a2a2a',borderWidth:1,titleColor:'#666',bodyColor:'#e8e8e8',padding:10,
+          callbacks:{label:ctx=>ctx.datasetIndex===0?' $'+ctx.parsed.y.toFixed(2):ctx.datasetIndex===1?' ▲ Buy @$'+ctx.parsed.y.toFixed(2):' ▼ Sell @$'+ctx.parsed.y.toFixed(2)}
+        }
+      },
+      scales:{
+        x:{type:'linear',display:false},
+        y:{grid:{color:'rgba(255,255,255,0.035)'},ticks:{color:'#444',font:{size:12,family:'Courier New'},callback:v=>'$'+v.toFixed(0)},border:{color:'#1c1c1c'}}
+      }
+    }
+  });
+  updateChart();
+}
+function updateChart() {
+  if (!chart) return;
+  chart.data.datasets[0].data=state.prices.map((p,i)=>({x:i,y:p}));
+  chart.data.datasets[1].data=state.tradeMarkers.filter(m=>m.type==='buy').map(m=>({x:m.idx,y:m.price}));
+  chart.data.datasets[2].data=state.tradeMarkers.filter(m=>m.type==='sell').map(m=>({x:m.idx,y:m.price}));
+  chart.update('none');
+}
+
+function render() {
+  const price=currentPrice(), prev=state.prices.length>1?state.prices[state.prices.length-2]:price;
+  const change=price-prev, pct=prev>0?(change/prev)*100:0;
+  document.getElementById('price-display').textContent='$'+price.toFixed(2);
+  const badge=document.getElementById('change-badge'), sign=change>=0?'+':'';
+  badge.textContent=sign+change.toFixed(2)+' ('+sign+pct.toFixed(2)+'%)';
+  badge.className='price-change '+(change>=0?'up':'down');
+  document.getElementById('cash-display').textContent='$'+state.cash.toFixed(2);
+  document.getElementById('shares-display').textContent=state.shares;
+  const holdings=+(price*state.shares).toFixed(2);
+  document.getElementById('holdings-display').textContent='$'+holdings.toFixed(2);
+  const nw=+(state.cash+holdings).toFixed(2);
+  const nwEl=document.getElementById('networth-display');
+  nwEl.textContent='$'+nw.toFixed(2);
+  nwEl.className='stat-value '+(nw>=STARTING_CASH?'positive':'negative');
+  const qty=Math.max(1,parseInt(document.getElementById('qty').value)||1);
+  document.getElementById('cost-preview').textContent='= $'+(price*qty).toFixed(2);
+  document.getElementById('btn-buy').disabled=state.cash<price;
+  document.getElementById('btn-sell').disabled=state.shares<1;
+}
+
+// ── Leaderboard ──
+function setLbStatus(msg, cls='') {
+  const el=document.getElementById('lb-status');
+  el.textContent=msg; el.className='lb-status'+(cls?' '+cls:'');
+}
+
+async function loadLeaderboard() {
+  setLbStatus('Loading…');
+  try {
+    const res = await fetch(JSONBIN_URL+'/latest', { headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'} });
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    renderLeaderboard((data.record||data).scores||[]);
+    setLbStatus('Updated just now','ok');
+  } catch(e) {
+    setLbStatus('Could not load — check connection','err');
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderLeaderboard(entries) {
+  const sorted=[...entries].sort((a,b)=>b.netWorth-a.netWorth);
+  const medals=['🥇','🥈','🥉'];
+  const body=document.getElementById('lb-body');
+  if (!sorted.length) {
+    body.innerHTML='<tr><td colspan="4" style="color:#2e2e2e;text-align:center;padding:30px 0;">No scores yet — be the first!</td></tr>';
+    return;
+  }
+  body.innerHTML=sorted.map((e,i)=>{
+    const rank=i<3?`<span style="font-size:16px">${medals[i]}</span>`:`<span style="color:#444;font-size:12px">${i+1}</span>`;
+    const diff=e.netWorth-STARTING_CASH, sign=diff>=0?'+':'', cls=diff>=0?'lb-nw-pos':'lb-nw-neg';
+    return `<tr>
+      <td>${rank}</td>
+      <td class="lb-player">${escHtml(e.name)}</td>
+      <td class="lb-nw-pos">$${e.netWorth.toFixed(2)}</td>
+      <td class="${cls}">${sign}$${Math.abs(diff).toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function getLockedName() {
+  try { return localStorage.getItem('apxc_player_name') || ''; } catch(e) { return ''; }
+}
+function lockName(name) {
+  try { localStorage.setItem('apxc_player_name', name); } catch(e) {}
+}
+function initNameField() {
+  const locked = getLockedName();
+  const input = document.getElementById('lb-name');
+  if (locked) {
+    input.value = locked;
+    input.disabled = true;
+    input.title = 'Name locked to this device';
+    input.style.opacity = '0.5';
+    input.style.cursor = 'not-allowed';
+  }
+}
+
+async function submitScore() {
+  const locked = getLockedName();
+  const input = document.getElementById('lb-name');
+  const name = locked || input.value.trim();
+  if (!name) { setLbStatus('Enter your name first','err'); return; }
+  const netWorth=+(state.cash+currentPrice()*state.shares).toFixed(2);
+  setLbStatus('Submitting…');
+  try {
+    const getRes=await fetch(JSONBIN_URL+'/latest',{headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}});
+    if (!getRes.ok) throw new Error('HTTP '+getRes.status);
+    const data=await getRes.json();
+    let scores=(data.record||data).scores||[];
+    const idx=scores.findIndex(e=>e.name.toLowerCase()===name.toLowerCase());
+    if (idx>=0) { if (netWorth>scores[idx].netWorth) scores[idx]={name,netWorth}; }
+    else scores.push({name,netWorth});
+    scores.sort((a,b)=>b.netWorth-a.netWorth);
+    scores=scores.slice(0,50);
+    const putRes=await fetch(JSONBIN_URL,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},
+      body:JSON.stringify({scores})
+    });
+    if (!putRes.ok) throw new Error('HTTP '+putRes.status);
+    if (!locked) lockName(name);
+    initNameField();
+    renderLeaderboard(scores);
+    setLbStatus('Score submitted!','ok');
+  } catch(e) {
+    setLbStatus('Submit failed — check connection','err');
+  }
+}
+
+async function autoSubmit(){const name=getLockedName();if(!name)return;const netWorth=+(state.cash+currentPrice()*state.shares).toFixed(2);try{const getRes=await fetch(JSONBIN_URL+'/latest',{headers:{'X-Master-Key':JSONBIN_KEY,'X-Bin-Meta':'false'}});if(!getRes.ok)return;const data=await getRes.json();let scores=(data.record||data).scores||[];const idx=scores.findIndex(e=>e.name.toLowerCase()===name.toLowerCase());if(idx>=0){if(netWorth<=scores[idx].netWorth)return;scores[idx]={name,netWorth};}else scores.push({name,netWorth});scores.sort((a,b)=>b.netWorth-a.netWorth);scores=scores.slice(0,50);await fetch(JSONBIN_URL,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},body:JSON.stringify({scores})});}catch(e){}}
+function toggleFullscreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else document.exitFullscreen();
+}
+document.addEventListener('fullscreenchange',()=>{
+  document.getElementById('fs-btn').textContent=document.fullscreenElement?'✕ exit fullscreen':'⛶ fullscreen';
+});
+window.addEventListener('resize',()=>{ if(chart) chart.resize(); });
+document.getElementById('qty').addEventListener('input',render);
+
+initNameField(); buildChart(); render(); setInterval(tick,1000);
+</script>
+</body>
+</html>
